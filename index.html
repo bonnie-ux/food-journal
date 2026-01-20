@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>飲食觀察日誌｜今天吃什麼？</title>
+  <style>
+    :root { --bg:#0b0f14; --card:#121a23; --muted:#9fb0c0; --text:#e8f0f7; --line:#223043; --accent:#5aa7ff; }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; font-family: system-ui, -apple-system, "Noto Sans TC", "Microsoft JhengHei", Arial, sans-serif;
+      background: radial-gradient(1200px 700px at 20% 0%, #102033 0%, var(--bg) 55%);
+      color:var(--text);
+    }
+    header{ padding:24px 16px 8px; max-width:1200px; margin:0 auto; }
+    h1{ margin:0 0 8px; font-size:22px; letter-spacing:.3px; }
+    p{ margin:0; color:var(--muted); line-height:1.5; }
+    main{ max-width:1200px; margin:0 auto; padding:16px; display:grid; grid-template-columns: 360px 1fr; gap:16px; }
+    @media (max-width: 980px){ main{ grid-template-columns: 1fr; } }
+    .card{
+      background: rgba(18,26,35,.9);
+      border:1px solid rgba(34,48,67,.9);
+      border-radius:16px;
+      padding:14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+    }
+    .card h2{ margin:0 0 10px; font-size:16px; }
+    label{ display:block; font-size:12px; color:var(--muted); margin:10px 0 6px; }
+    input, select, textarea{
+      width:100%;
+      border:1px solid rgba(34,48,67,.9);
+      background:#0e1620;
+      color:var(--text);
+      border-radius:10px;
+      padding:10px 10px;
+      outline:none;
+    }
+    textarea{ min-height:84px; resize:vertical; }
+    .row{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .btns{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
+    button{
+      border:1px solid rgba(34,48,67,.9);
+      background:#0e1620;
+      color:var(--text);
+      border-radius:12px;
+      padding:10px 12px;
+      cursor:pointer;
+      transition: .15s transform, .15s border-color;
+    }
+    button:hover{ transform: translateY(-1px); border-color: rgba(90,167,255,.9); }
+    .primary{ background: rgba(90,167,255,.16); border-color: rgba(90,167,255,.7); }
+    .danger{ background: rgba(255,90,90,.12); border-color: rgba(255,90,90,.55); }
+    .hint{ font-size:12px; color:var(--muted); margin-top:10px; line-height:1.5; }
+    table{ width:100%; border-collapse:collapse; font-size:13px; }
+    th, td{ border-bottom:1px solid rgba(34,48,67,.8); padding:10px 8px; vertical-align:top; }
+    th{ text-align:left; color:#cfe2f3; font-weight:600; position:sticky; top:0; background: rgba(18,26,35,.95); }
+    .muted{ color:var(--muted); }
+    .tools{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .tools .left{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .tools input{ width:220px; }
+    .pill{
+      display:inline-flex; align-items:center; gap:6px;
+      padding:4px 10px; border:1px solid rgba(34,48,67,.9);
+      border-radius:999px; color:var(--muted); font-size:12px;
+    }
+    .star{ color:#ffd35a; }
+    a{ color: var(--accent); text-decoration:none; }
+    a:hover{ text-decoration:underline; }
+    .small{ font-size:12px; }
+    .wrap{ white-space:pre-wrap; }
+    .nowrap{ white-space:nowrap; }
+  </style>
+
+  <!-- SheetJS (xlsx) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>飲食觀察日誌｜今天吃什麼？（1 週）</h1>
+    <p>每天記錄：日期與用餐時間、餐別、內容、主要食材、烹調方式、菜色介紹、美食評鑑（星等/評語），並可貼上影片連結。最後一鍵匯出 Excel。</p>
+  </header>
+
+  <main>
+    <!-- 左：新增/編輯 -->
+    <section class="card">
+      <h2 id="formTitle">新增紀錄</h2>
+
+      <div class="row">
+        <div>
+          <label>日期</label>
+          <input id="date" type="date" />
+        </div>
+        <div>
+          <label>用餐時間</label>
+          <input id="time" type="time" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label>餐別</label>
+          <select id="mealType">
+            <option>早餐</option>
+            <option>午餐</option>
+            <option>晚餐</option>
+            <option>宵夜</option>
+            <option>點心</option>
+          </select>
+        </div>
+        <div>
+          <label>星等（1～5）</label>
+          <select id="rating">
+            <option value="5">5（超喜歡）</option>
+            <option value="4">4（好吃）</option>
+            <option value="3">3（普通）</option>
+            <option value="2">2（不太行）</option>
+            <option value="1">1（不會再吃）</option>
+          </select>
+        </div>
+      </div>
+
+      <label>菜色／品項名稱</label>
+      <input id="dish" type="text" placeholder="例：家常豬肉炒麵 / 鮪魚三明治 / 黑糖珍奶" />
+
+      <label>主要食材（用逗號分隔）</label>
+      <input id="ingredients" type="text" placeholder="例：豬絞肉, 紅蘿蔔, 小白菜, 麵條" />
+
+      <label>烹調方式</label>
+      <input id="cooking" type="text" placeholder="例：炒 / 煎 / 烤 / 蒸 / 水煮 / 外食" />
+
+      <label>影片連結（可貼 YouTube/雲端硬碟/IG 連結）</label>
+      <input id="videoUrl" type="url" placeholder="https://..." />
+
+      <label>菜色介紹（簡短）</label>
+      <textarea id="intro" placeholder="例：今天自己炒麵，走家常口味，蝦米提香，油蔥酥收尾。"></textarea>
+
+      <label>美食評鑑（口感/香氣/份量/價格/會不會回購）</label>
+      <textarea id="review" placeholder="例：香氣：4/5，口感：4/5，份量：剛好；下次可少一點醬油更清爽。"></textarea>
+
+      <div class="btns">
+        <button class="primary" id="saveBtn">儲存</button>
+        <button id="resetBtn">清空表單</button>
+        <button class="danger" id="deleteBtn" style="display:none;">刪除此筆</button>
+      </div>
+
+      <div class="hint">
+        ✅ 建議做法：手機把影片剪好 → 上傳到私人/不公開 → 把連結貼在這裡。<br/>
+        ✅ 你可以每天記 1～多筆（早餐/午餐/晚餐都可）。
+      </div>
+    </section>
+
+    <!-- 右：清單/匯出 -->
+    <section class="card">
+      <div class="tools">
+        <div class="left">
+          <span class="pill">共 <b id="count">0</b> 筆</span>
+          <input id="search" type="text" placeholder="搜尋：菜色/食材/評語…" />
+        </div>
+        <div class="left">
+          <button id="exportBtn" class="primary">匯出 Excel（.xlsx）</button>
+          <button id="exportCsvBtn">匯出 CSV</button>
+          <button id="clearAllBtn" class="danger">清空全部資料</button>
+        </div>
+      </div>
+
+      <div style="overflow:auto; max-height: 70vh; border-radius:12px;">
+        <table id="table">
+          <thead>
+            <tr>
+              <th class="nowrap">日期</th>
+              <th class="nowrap">時間</th>
+              <th class="nowrap">餐別</th>
+              <th>菜色</th>
+              <th>主要食材</th>
+              <th class="nowrap">方式</th>
+              <th class="nowrap">星等</th>
+              <th>介紹 / 評鑑</th>
+              <th class="nowrap">影片</th>
+              <th class="nowrap">操作</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+
+      <p class="muted small" style="margin-top:10px;">
+        ※ 資料存在此瀏覽器；若要換電腦或清除快取，請先匯出 Excel 保存。
+      </p>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "food_journal_entries_v1";
+
+    const $ = (id) => document.getElementById(id);
+
+    const state = {
+      entries: [],
+      editingId: null,
+    };
+
+    function uid() {
+      return "id_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+    }
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        state.entries = raw ? JSON.parse(raw) : [];
+      } catch {
+        state.entries = [];
+      }
+    }
+
+    function saveToStorage() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
+    }
+
+    function stars(n) {
+      const num = Number(n) || 0;
+      return "★".repeat(num) + "☆".repeat(Math.max(0, 5 - num));
+    }
+
+    function escapeHtml(s="") {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function render() {
+      const q = ($("search").value || "").trim().toLowerCase();
+
+      const filtered = state.entries
+        .slice()
+        .sort((a,b) => (b.date + (b.time||"")) .localeCompare(a.date + (a.time||"")))
+        .filter(e => {
+          if (!q) return true;
+          const blob = [
+            e.date, e.time, e.mealType, e.dish, e.ingredients, e.cooking, e.intro, e.review, e.videoUrl
+          ].join(" ").toLowerCase();
+          return blob.includes(q);
+        });
+
+      $("count").textContent = state.entries.length;
+
+      const rows = filtered.map(e => {
+        const videoCell = e.videoUrl
+          ? `<a href="${escapeHtml(e.videoUrl)}" target="_blank" rel="noopener">連結</a>`
+          : `<span class="muted">—</span>`;
+
+        const textCell = `${escapeHtml(e.intro || "")}\n\n${escapeHtml(e.review || "")}`.trim();
+        const textCellHtml = textCell ? `<div class="wrap">${textCell}</div>` : `<span class="muted">—</span>`;
+
+        return `
+          <tr>
+            <td class="nowrap">${escapeHtml(e.date || "")}</td>
+            <td class="nowrap">${escapeHtml(e.time || "")}</td>
+            <td class="nowrap">${escapeHtml(e.mealType || "")}</td>
+            <td>${escapeHtml(e.dish || "")}</td>
+            <td>${escapeHtml(e.ingredients || "")}</td>
+            <td class="nowrap">${escapeHtml(e.cooking || "")}</td>
+            <td class="nowrap"><span class="star">${escapeHtml(stars(e.rating))}</span></td>
+            <td>${textCellHtml}</td>
+            <td class="nowrap">${videoCell}</td>
+            <td class="nowrap">
+              <button onclick="editEntry('${e.id}')">編輯</button>
+              <button class="danger" onclick="removeEntry('${e.id}')">刪除</button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+
+      $("tbody").innerHTML = rows || `
+        <tr>
+          <td colspan="10" class="muted">目前沒有資料。先在左邊新增一筆吧。</td>
+        </tr>
+      `;
+    }
+
+    function getFormData() {
+      return {
+        date: $("date").value,
+        time: $("time").value,
+        mealType: $("mealType").value,
+        dish: $("dish").value.trim(),
+        ingredients: $("ingredients").value.trim(),
+        cooking: $("cooking").value.trim(),
+        videoUrl: $("videoUrl").value.trim(),
+        intro: $("intro").value.trim(),
+        review: $("review").value.trim(),
+        rating: $("rating").value,
+      };
+    }
+
+    function setFormData(e) {
+      $("date").value = e.date || "";
+      $("time").value = e.time || "";
+      $("mealType").value = e.mealType || "早餐";
+      $("dish").value = e.dish || "";
+      $("ingredients").value = e.ingredients || "";
+      $("cooking").value = e.cooking || "";
+      $("videoUrl").value = e.videoUrl || "";
+      $("intro").value = e.intro || "";
+      $("review").value = e.review || "";
+      $("rating").value = String(e.rating || "5");
+    }
+
+    function resetForm() {
+      state.editingId = null;
+      $("formTitle").textContent = "新增紀錄";
+      $("deleteBtn").style.display = "none";
+      setFormData({
+        date: new Date().toISOString().slice(0,10),
+        time: "",
+        mealType: "早餐",
+        rating: "5"
+      });
+      $("dish").focus();
+    }
+
+    function validate(e) {
+      const missing = [];
+      if (!e.date) missing.push("日期");
+      if (!e.mealType) missing.push("餐別");
+      if (!e.dish) missing.push("菜色／品項名稱");
+      if (missing.length) {
+        alert("請至少填寫：" + missing.join("、"));
+        return false;
+      }
+      return true;
+    }
+
+    function upsertEntry() {
+      const data = getFormData();
+      if (!validate(data)) return;
+
+      if (state.editingId) {
+        const idx = state.entries.findIndex(x => x.id === state.editingId);
+        if (idx >= 0) state.entries[idx] = { ...state.entries[idx], ...data };
+      } else {
+        state.entries.push({ id: uid(), ...data, createdAt: new Date().toISOString() });
+      }
+
+      saveToStorage();
+      resetForm();
+      render();
+    }
+
+    window.editEntry = function(id) {
+      const e = state.entries.find(x => x.id === id);
+      if (!e) return;
+      state.editingId = id;
+      $("formTitle").textContent = "編輯紀錄";
+      $("deleteBtn").style.display = "inline-block";
+      setFormData(e);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    window.removeEntry = function(id) {
+      if (!confirm("確定要刪除這筆嗎？")) return;
+      state.entries = state.entries.filter(x => x.id !== id);
+      saveToStorage();
+      if (state.editingId === id) resetForm();
+      render();
+    };
+
+    function deleteCurrent() {
+      if (!state.editingId) return;
+      window.removeEntry(state.editingId);
+    }
+
+    function exportExcel() {
+      // 欄位順序（符合老師建議）
+      const rows = state.entries
+        .slice()
+        .sort((a,b) => (a.date + (a.time||"")).localeCompare(b.date + (b.time||"")))
+        .map(e => ({
+          "日期": e.date || "",
+          "用餐時間": e.time || "",
+          "餐別": e.mealType || "",
+          "菜色/內容": e.dish || "",
+          "主要食材": e.ingredients || "",
+          "烹調方式": e.cooking || "",
+          "菜色介紹": e.intro || "",
+          "美食評鑑": e.review || "",
+          "星等(1-5)": Number(e.rating || 0),
+          "影片連結": e.videoUrl || "",
+          "建立時間": e.createdAt || ""
+        }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "飲食觀察日誌");
+
+      // 檔名：Food_Journal_YYYY-MM-DD.xlsx
+      const today = new Date().toISOString().slice(0,10);
+      XLSX.writeFile(wb, `Food_Journal_${today}.xlsx`);
+    }
+
+    function exportCsv() {
+      const rows = state.entries
+        .slice()
+        .sort((a,b) => (a.date + (a.time||"")).localeCompare(b.date + (b.time||"")))
+        .map(e => ({
+          "日期": e.date || "",
+          "用餐時間": e.time || "",
+          "餐別": e.mealType || "",
+          "菜色/內容": e.dish || "",
+          "主要食材": e.ingredients || "",
+          "烹調方式": e.cooking || "",
+          "菜色介紹": e.intro || "",
+          "美食評鑑": e.review || "",
+          "星等(1-5)": Number(e.rating || 0),
+          "影片連結": e.videoUrl || "",
+        }));
+
+      const header = Object.keys(rows[0] || {
+        "日期":"", "用餐時間":"", "餐別":"", "菜色/內容":"", "主要食材":"",
+        "烹調方式":"", "菜色介紹":"", "美食評鑑":"", "星等(1-5)":"", "影片連結":""
+      });
+
+      const csvLines = [header.join(",")].concat(
+        rows.map(r => header.map(h => {
+          const v = (r[h] ?? "").toString().replaceAll('"','""');
+          return `"${v}"`;
+        }).join(","))
+      );
+
+      const blob = new Blob(["\uFEFF" + csvLines.join("\n")], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Food_Journal_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function clearAll() {
+      if (!confirm("確定要清空全部資料？此動作無法復原，建議先匯出 Excel。")) return;
+      state.entries = [];
+      saveToStorage();
+      resetForm();
+      render();
+    }
+
+    // init
+    load();
+
+    // 預設日期今天
+    if (!$("date").value) $("date").value = new Date().toISOString().slice(0,10);
+
+    $("saveBtn").addEventListener("click", upsertEntry);
+    $("resetBtn").addEventListener("click", resetForm);
+    $("deleteBtn").addEventListener("click", deleteCurrent);
+    $("exportBtn").addEventListener("click", exportExcel);
+    $("exportCsvBtn").addEventListener("click", exportCsv);
+    $("clearAllBtn").addEventListener("click", clearAll);
+    $("search").addEventListener("input", render);
+
+    // keyboard: Ctrl+Enter to save
+    document.addEventListener("keydown", (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") upsertEntry();
+    });
+
+    resetForm();
+    render();
+  </script>
+</body>
+</html>
